@@ -41,10 +41,10 @@ class PGActorContinuous(object):
         # state placeholders (these could be sequences for recurrent model)
         state = tflearn.input_data(shape=[None, self.s_dim])
         # feedforward / recurrent model to distribution parameters
-        l1 = tflearn.fully_connected(state, 40, activation='relu')
-        #l2 = tflearn.fully_connected(l1, 30, activation='relu')
+        l1 = tflearn.fully_connected(state, 300, activation='relu')
+        l2 = tflearn.fully_connected(l1, 200, activation='relu')
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        unscaled_means = tflearn.fully_connected(l1, self.a_dim, activation='tanh', weights_init=w_init)
+        unscaled_means = tflearn.fully_connected(l2, self.a_dim, activation='tanh', weights_init=w_init)
         means = tf.mul(unscaled_means, self.action_bound)
         
         return std_param, state, means, stds
@@ -63,7 +63,7 @@ class PGActorContinuous(object):
         # Modify the probs to account for truncation
         total_mass = dists.cdf(tf.to_float(self.action_bound))-dists.cdf(tf.to_float(-self.action_bound))
         probs = tf.expand_dims(unnormed_probs/total_mass, 1)
-        losses = -probs/tf.stop_gradient(probs) * old_advantages
+        losses = old_advantages * -probs/tf.stop_gradient(probs)
         loss = tf.reduce_mean(losses)
         
         loss = tf.Print(loss, [tf.shape(self.means)], message = "self.means has shape: ")
