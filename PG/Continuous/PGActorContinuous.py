@@ -35,46 +35,54 @@ class PGActorContinuous(object):
         
     def create_actor_network(self):
         # stddevs (not functions of state)
-        std_param = tf.Variable([-0.5])
-        stds = tf.exp(std_param)
+        std_params = tf.Variable(np.zeros([self.a_dim]))
+        stds = tf.to_float(tf.exp(std_params))*self.action_bound
         
         # state placeholders (these could be sequences for recurrent model)
         state = tflearn.input_data(shape=[None, self.s_dim])
         # feedforward / recurrent model to distribution parameters
-        l1 = tflearn.fully_connected(state, 300, activation='relu')
-        l2 = tflearn.fully_connected(l1, 200, activation='relu')
+        state_norm = tflearn.layers.normalization.batch_normalization(state)
+        l1 = tflearn.fully_connected(state_norm, 30, activation='relu')
+        l1_norm = tflearn.layers.normalization.batch_normalization(l1) 
+        l2 = tflearn.fully_connected(l1_norm, 30, activation='relu') + l1_norm
+        l2_norm = tflearn.layers.normalization.batch_normalization(l2)
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        unscaled_means = tflearn.fully_connected(l2, self.a_dim, activation='tanh', weights_init=w_init)
+        unscaled_means = tflearn.fully_connected(l2_norm, self.a_dim, activation='tanh', weights_init=w_init)
         means = tf.mul(unscaled_means, self.action_bound)
         
-        return std_param, state, means, stds
+        return std_params, state, means, stds
     
     def create_loss(self):
         old_actions = tflearn.input_data(shape=[None, self.a_dim])
         old_advantages = tflearn.input_data(shape=[None, 1])
-        batch_size = tf.to_int32(
-            tf.reduce_sum(tf.reduce_sum(self.means * 0, 1) + 1))
-        stds_tiled = tf.to_float(tf.tile(self.stds, [batch_size]))
+        #batch_size = tf.to_int32(
+            #tf.reduce_sum(tf.reduce_sum(self.means * 0, 1) + 1))
+        #stds_tiled = tf.to_float(tf.tile(self.stds, [batch_size]))
        
         
         # Create the raw gaussian distribution for an action
-        dists = tf.contrib.distributions.Normal(tf.squeeze(self.means, [1]), tf.to_float(stds_tiled))
-        unnormed_probs = (dists.pdf(tf.squeeze(old_actions, [1])))
-        # Modify the probs to account for truncation
-        total_mass = dists.cdf(tf.to_float(self.action_bound))-dists.cdf(tf.to_float(-self.action_bound))
-        probs = tf.expand_dims(unnormed_probs/total_mass, 1)
-        losses = old_advantages * -probs/tf.stop_gradient(probs)
-        loss = tf.reduce_mean(losses)
+        means = tf.Print(self.means, [tf.shape(self.means)], "self.means has shape: ")
         
-        loss = tf.Print(loss, [tf.shape(self.means)], message = "self.means has shape: ")
-        loss = tf.Print(loss, [tf.shape(stds_tiled)], message = "stds_tiled has shape: ")
+        stds = tf.Print(self.stds, [tf.shape(self.stds)], "self.stds has shape: ")
+        stds = tf.Print(stds, [tf.shape(stds + means)], "stds + means has shape: " )
+        dists = tf.contrib.distributions.Normal(means, stds)
+        unnormed_probs = tf.reduce_prod(dists.pdf(old_actions), 1, keep_dims=True)
+        unnormed_probs = tf.Print(unnormed_probs, [tf.shape(unnormed_probs)], "unnormed_probs has shape")
+        # Modify the probs to account for truncation
+        masses = dists.cdf(tf.to_float(self.action_bound))-dists.cdf(tf.to_float(-self.action_bound))
+        masses = tf.Print(masses, [tf.shape(masses)], message = "masses has shape: ")
+        masses = tf.Print(masses, [masses], message = "masses = ")
+        total_mass = tf.reduce_prod(masses, 1, keep_dims=True)
+        total_mass = tf.Print(total_mass, [tf.shape(total_mass)], message = "total_mass has shape: ")
+        probs = tf.truediv(unnormed_probs,total_mass)
+        probs = tf.Print(probs, [tf.shape(probs)], message = "probs has shape: ")
+        losses = old_advantages * -probs/tf.stop_gradient(probs)
+        losses = tf.Print(losses, [tf.shape(losses)], message = "losses has shape: ")
+        loss = tf.reduce_mean(losses)
+        loss = tf.Print(loss, [tf.shape(loss)], message = "loss has shape: ")
+        
         loss = tf.Print(loss, [tf.shape(old_advantages)], message = "old_advantages has shape: ")
         loss = tf.Print(loss, [tf.shape(old_actions)], message = "old_actions has shape: ")
-        loss = tf.Print(loss, [tf.shape(unnormed_probs)], message = "unnormed_probs has shape: ")
-        loss = tf.Print(loss, [tf.shape(total_mass)], message = "total_mass has shape: ")
-        loss = tf.Print(loss, [tf.shape(probs)], message = "probs has shape: ")
-        loss = tf.Print(loss, [tf.shape(losses)], message = "losses has shape: ")
-        loss = tf.Print(loss, [tf.shape(loss)], message = "loss has shape: ")
         
         loss = tf.Print(loss, [old_actions], message = "old_actions = ")
         loss = tf.Print(loss, [unnormed_probs], message = "unnormed_probs = ")
@@ -83,7 +91,7 @@ class PGActorContinuous(object):
         loss = tf.Print(loss, [old_advantages], message = "old_advantages = ")
         loss = tf.Print(loss, [self.means], message = "self.means = ")
         loss = tf.Print(loss, [self.stds], message = "self.stds = ")
-        loss = tf.Print(loss, [stds_tiled], message = "stds_tiled = ")
+        #loss = tf.Print(loss, [stds_tiled], message = "stds_tiled = ")
         #loss = tf.Print(loss, [probs], message = "probs = ")
         loss = tf.Print(loss, [losses], message = "losses = ")
         
@@ -103,11 +111,14 @@ class PGActorContinuous(object):
     
     def create_value_network(self): 
         # feedforward / recurrent model to value
-        l1 = tflearn.fully_connected(self.state, 40, activation='relu')
-        l2 = tflearn.fully_connected(l1, 30, activation = 'relu')
+        state_norm = tflearn.layers.normalization.batch_normalization(self.state)
+        l1 = tflearn.fully_connected(state_norm, 30, activation='relu')
+        l1_norm = tflearn.layers.normalization.batch_normalization(l1)
+        l2 = tflearn.fully_connected(l1_norm, 30, activation = 'relu') + l1_norm
+        l2_norm = tflearn.layers.normalization.batch_normalization(l2)
         # Weights are init to Uniform[-3e-3, 3e-3]
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        value = tflearn.fully_connected(l2, 1, activation = 'linear', weights_init=w_init)
+        value = tflearn.fully_connected(l2_norm, 1, activation = 'linear', weights_init=w_init)
         return value
     
     def create_value_loss(self):
