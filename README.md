@@ -1,8 +1,8 @@
 # RL-reimplementations
 
-Reimplementations of DDPG (before A3C) and policy gradient.
+From-scratch reimplementations of DDPG (before A3C) and policy gradient.
 
-Spent a lot of time doing this when I should've been revising.
+Spent a lot of time doing this when I should've been revising. Learned a lot more than from forking, though.
 
 Advantage-PG on pendulum swing-up:
 
