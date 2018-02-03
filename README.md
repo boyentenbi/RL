@@ -8,4 +8,4 @@ Advantage-PG on pendulum swing-up:
 
 ![Alt Text](https://media.giphy.com/media/3o6nUPNSWqaIytYVPi/giphy.gif)
 
-Full video: https://www.youtube.com/watch?time_continue=34&v=pf-ATPFff74
+Full video: https://youtu.be/pf-ATPFff74
