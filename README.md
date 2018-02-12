@@ -1,7 +1,7 @@
 # RL-reimplementations
 My goal here was just to have some fun reimplementing DDPG (before A3C) and policy gradient. 
 
-The PG implementation is from-scratch. For the DPPG implementation I made heavy references to Patrick Emami's blog post when I got stuck (http://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html). 
+The PG implementation is from-scratch. For the DPPG implementation I originally wrote my own code and later 'forked' Patrick Emami's blog post for its better OO design (http://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html). 
 
 
 Advantage-PG on pendulum swing-up:
